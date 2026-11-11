@@ -3,6 +3,7 @@ import type { FormEvent } from 'react'
 import { api, errorText, formatCode, formatDate, post } from '../api'
 import type { Meeting, User } from '../types'
 import { Icon } from '../components/Icon'
+import { HistoryDialog } from '../components/HistoryDialog'
 
 export function Dashboard({
   user,
@@ -16,6 +17,7 @@ export function Dashboard({
   notice: string
 }) {
   const [meetings, setMeetings] = useState<Meeting[]>([])
+  const [history, setHistory] = useState<Meeting | null>(null)
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -224,7 +226,9 @@ export function Dashboard({
                     </p>
                   </div>
                   {meeting.endedAt ? (
-                    <span className="muted row-status">已结束</span>
+                    <button className="button subtle" onClick={() => setHistory(meeting)}>
+                      详情与回放
+                    </button>
                   ) : (
                     <>
                       <span className="online-tag">
@@ -302,6 +306,9 @@ export function Dashboard({
             </form>
           </section>
         </div>
+      )}
+      {history && (
+        <HistoryDialog meeting={history} userId={user.id} onClose={() => setHistory(null)} />
       )}
     </div>
   )

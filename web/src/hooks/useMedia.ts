@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { errorText } from '../api'
+import { useBackground } from './useBackground'
 
 function deviceError(error: unknown): string {
   if (error instanceof DOMException) {
@@ -18,19 +19,31 @@ export function useMedia() {
   const tracks = useRef<{ audio?: MediaStreamTrack; video?: MediaStreamTrack }>({})
   const mounted = useRef(true)
   const requests = useRef({ audio: 0, video: 0 })
+  const recovery = useRef<(kind: 'audio' | 'video', enabled: boolean) => void>(() => {})
+  const recovering = useRef(new Set<'audio' | 'video'>())
   const [stream, setStream] = useState<MediaStream>()
   const [mic, setMic] = useState(false)
   const [camera, setCamera] = useState(false)
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([])
   const [deviceId, setDeviceId] = useState('')
+  const [cameraId, setCameraId] = useState('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  const background = useBackground(stream, camera)
 
   const refreshDevices = useCallback(async () => {
     if (!navigator.mediaDevices) return
     try {
       const list = await navigator.mediaDevices.enumerateDevices()
-      if (mounted.current) setDevices(list)
+      if (mounted.current) {
+        setDevices(list)
+        for (const kind of ['audio', 'video'] as const) {
+          const track = tracks.current[kind]
+          const selected = track?.getSettings?.().deviceId
+          if (selected && !list.some((device) => device.deviceId === selected))
+            recovery.current(kind, track!.enabled)
+        }
+      }
     } catch {
       /* Device labels may be hidden without permission. */
     }
@@ -52,7 +65,7 @@ export function useMedia() {
   }, [refreshDevices])
 
   const acquire = useCallback(
-    async (kind: 'audio' | 'video', selectedDevice = '') => {
+    async (kind: 'audio' | 'video', selectedDevice = '', preserveEnabled?: boolean) => {
       const request = ++requests.current[kind]
       if (!navigator.mediaDevices?.getUserMedia) {
         setError('当前环境无法访问设备，请使用 localhost 或 HTTPS。')
@@ -69,7 +82,14 @@ export function useMedia() {
                   : { echoCancellation: true },
                 video: false,
               }
-            : { audio: false, video: { width: { ideal: 1280 }, height: { ideal: 720 } } },
+            : {
+                audio: false,
+                video: {
+                  ...(selectedDevice ? { deviceId: { exact: selectedDevice } } : {}),
+                  width: { ideal: 1280 },
+                  height: { ideal: 720 },
+                },
+              },
         )
         const nextTrack = nextStream.getTracks()[0]
         // 权限弹窗可能延迟返回；离开页面后的请求结果不能重新开启设备。
@@ -77,6 +97,8 @@ export function useMedia() {
           nextStream.getTracks().forEach((track) => track.stop())
           return
         }
+        const enabled = preserveEnabled ?? tracks.current[kind]?.enabled ?? true
+        nextTrack.enabled = enabled
         tracks.current[kind]?.stop()
         tracks.current[kind] = nextTrack
         nextTrack.onended = () => {
@@ -90,6 +112,7 @@ export function useMedia() {
             ),
           )
           setError('设备已断开，请重新选择或开启。')
+          recovery.current(kind, nextTrack.enabled)
         }
         setStream(
           new MediaStream(
@@ -97,9 +120,12 @@ export function useMedia() {
           ),
         )
         if (kind === 'audio') {
-          setMic(true)
+          setMic(enabled)
           setDeviceId(selectedDevice)
-        } else setCamera(true)
+        } else {
+          setCamera(enabled)
+          setCameraId(selectedDevice)
+        }
         await refreshDevices()
       } catch (error) {
         if (mounted.current && request === requests.current[kind]) setError(deviceError(error))
@@ -110,6 +136,15 @@ export function useMedia() {
     [refreshDevices],
   )
 
+  useEffect(() => {
+    recovery.current = (kind, enabled) => {
+      if (recovering.current.has(kind)) return
+      recovering.current.add(kind)
+      // 自动恢复保留原静音状态，不因插拔耳机而突然打开麦克风。
+      void acquire(kind, '', enabled).finally(() => recovering.current.delete(kind))
+    }
+  }, [acquire])
+
   const toggle = useCallback(
     async (kind: 'audio' | 'video') => {
       const track = tracks.current[kind]
@@ -117,9 +152,9 @@ export function useMedia() {
         track.enabled = !track.enabled
         if (kind === 'audio') setMic(track.enabled)
         else setCamera(track.enabled)
-      } else await acquire(kind, kind === 'audio' ? deviceId : '')
+      } else await acquire(kind, kind === 'audio' ? deviceId : cameraId)
     },
-    [acquire, deviceId],
+    [acquire, deviceId, cameraId],
   )
 
   const stop = useCallback(() => {
@@ -131,17 +166,27 @@ export function useMedia() {
     setMic(false)
     setCamera(false)
   }, [])
+  const mute = useCallback(() => {
+    const audio = tracks.current.audio
+    if (audio) audio.enabled = false
+    setMic(false)
+  }, [])
   return {
-    stream,
+    stream: background.stream,
+    rawStream: stream,
+    background,
     mic,
     camera,
     devices,
     deviceId,
-    error,
+    cameraId,
+    error: error || background.error,
     busy,
     toggle,
     stop,
     selectMicrophone: (id: string) => acquire('audio', id),
+    selectCamera: (id: string) => acquire('video', id),
+    mute,
   }
 }
 export type MediaController = ReturnType<typeof useMedia>

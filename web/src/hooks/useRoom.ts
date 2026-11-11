@@ -1,12 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { api, errorText, session } from '../api'
-import type { ConnectionState, Meeting, Member, Message } from '../types'
+import type { ConnectionState, Meeting, Member, Message, Caption } from '../types'
 import type { Signal } from './usePeers'
 
 interface RoomOptions {
   meeting: Meeting
   mic: boolean
   camera: boolean
+  screen?: boolean
+  recording?: boolean
+  captioning?: boolean
+  onCaption?: (caption: Caption) => void
+  onModeration?: (muted: boolean) => void
   onSignal: (from: number, sessionId: string, signal: Signal) => void
   onMembers: (members: Member[]) => void
   onDisconnect: () => void
@@ -26,6 +31,7 @@ export function useRoom(options: RoomOptions) {
   }, [options])
   const socket = useRef<WebSocket | null>(null)
   const [status, setStatus] = useState<ConnectionState>('connecting')
+  const [sessionId, setSessionId] = useState('')
   const [members, setMembers] = useState<Member[]>([])
   const [messages, setMessages] = useState<Message[]>([])
   const [error, setError] = useState('')
@@ -105,6 +111,7 @@ export function useRoom(options: RoomOptions) {
         }
         switch (event.type) {
           case 'ready':
+            setSessionId((event.data as { sessionId: string } | undefined)?.sessionId ?? '')
             clearTimeout(watchdog)
             attempts = 0
             setStatus('online')
@@ -123,6 +130,9 @@ export function useRoom(options: RoomOptions) {
             lastID.current = Math.max(lastID.current, message.id)
             break
           }
+          case 'caption':
+            latest.current.onCaption?.(event.data as Caption)
+            break
           case 'signal': {
             const data = event.data as { from: number; sessionId: string; signal: Signal }
             latest.current.onSignal(data.from, data.sessionId, data.signal)
@@ -130,6 +140,12 @@ export function useRoom(options: RoomOptions) {
           }
           case 'ended':
             exit('主持人已结束会议。')
+            break
+          case 'removed':
+            exit('你已被主持人移出本场会议，无法再次加入。')
+            break
+          case 'moderation':
+            latest.current.onModeration?.((event.data as { muted: boolean }).muted)
             break
           case 'left':
             exit('你已离开会议。')
@@ -184,8 +200,24 @@ export function useRoom(options: RoomOptions) {
     }
   }, [options.meeting.id])
   useEffect(() => {
-    if (status === 'online') send({ type: 'state', mic: options.mic, camera: options.camera })
-  }, [options.mic, options.camera, status, send])
+    if (status === 'online')
+      send({
+        type: 'state',
+        mic: options.mic,
+        camera: options.camera,
+        screen: options.screen,
+        recording: options.recording,
+        captioning: options.captioning,
+      })
+  }, [
+    options.mic,
+    options.camera,
+    options.screen,
+    options.recording,
+    options.captioning,
+    status,
+    send,
+  ])
 
   const loadOlder = async () => {
     if (!messages.length || loadingOlder) return
@@ -202,5 +234,16 @@ export function useRoom(options: RoomOptions) {
       setLoadingOlder(false)
     }
   }
-  return { status, members, messages, error, setError, send, hasOlder, loadOlder, loadingOlder }
+  return {
+    status,
+    sessionId,
+    members,
+    messages,
+    error,
+    setError,
+    send,
+    hasOlder,
+    loadOlder,
+    loadingOlder,
+  }
 }

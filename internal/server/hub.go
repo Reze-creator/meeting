@@ -1,6 +1,7 @@
 package server
 
 import (
+	"comeet/internal/media"
 	"context"
 	"encoding/json"
 	"log/slog"
@@ -15,26 +16,33 @@ import (
 )
 
 type member struct {
-	ID        int64  `json:"id"`
-	Name      string `json:"name"`
-	Host      bool   `json:"host"`
-	Mic       bool   `json:"mic"`
-	Camera    bool   `json:"camera"`
-	SessionID string `json:"sessionId"`
+	ID          int64  `json:"id"`
+	Name        string `json:"name"`
+	Host        bool   `json:"host"`
+	Mic         bool   `json:"mic"`
+	Camera      bool   `json:"camera"`
+	SessionID   string `json:"sessionId"`
+	Screen      bool   `json:"screen"`
+	MutedByHost bool   `json:"mutedByHost"`
+	Recording   bool   `json:"recording"`
+	Captioning  bool   `json:"captioning"`
 }
 type event struct {
 	Type string `json:"type"`
 	Data any    `json:"data,omitempty"`
 }
 type incoming struct {
-	Type     string          `json:"type"`
-	Token    string          `json:"token,omitempty"`
-	Content  string          `json:"content,omitempty"`
-	ClientID string          `json:"clientId,omitempty"`
-	Mic      bool            `json:"mic"`
-	Camera   bool            `json:"camera"`
-	Target   int64           `json:"target,omitempty"`
-	Signal   json.RawMessage `json:"signal,omitempty"`
+	Type       string          `json:"type"`
+	Token      string          `json:"token,omitempty"`
+	Content    string          `json:"content,omitempty"`
+	ClientID   string          `json:"clientId,omitempty"`
+	Mic        bool            `json:"mic"`
+	Camera     bool            `json:"camera"`
+	Target     int64           `json:"target,omitempty"`
+	Signal     json.RawMessage `json:"signal,omitempty"`
+	Screen     bool            `json:"screen"`
+	Recording  bool            `json:"recording"`
+	Captioning bool            `json:"captioning"`
 }
 type client struct {
 	conn        *websocket.Conn
@@ -44,6 +52,8 @@ type client struct {
 	member      member
 	lastMessage time.Time
 	expiresAt   time.Time
+	windowStart time.Time
+	frameCount  int
 }
 
 // Hub 串行处理房间变更。每个连接只有 writeLoop 写入，读取协程仅负责入队。
@@ -54,6 +64,7 @@ type Hub struct {
 	store  *store.Store
 	closed bool
 	wg     sync.WaitGroup
+	media  *media.Client
 }
 
 func newHub(s *store.Store) *Hub { return &Hub{rooms: map[string]map[int64]*client{}, store: s} }
@@ -91,6 +102,11 @@ func (h *Hub) detach(c *client) {
 		slog.Error("更新离会状态失败", "error", err)
 	}
 	h.membersLocked(c.meetingID)
+	if h.media != nil {
+		if err := h.media.Remove(ctx, c.meetingID, c.user.ID); err != nil {
+			slog.Warn("媒体成员清理失败", "error", err)
+		}
+	}
 	if len(room) == 0 {
 		delete(h.rooms, c.meetingID)
 	}
@@ -167,6 +183,13 @@ func (s *Server) websocket(w http.ResponseWriter, r *http.Request) {
 		_ = conn.WriteJSON(event{Type: "unavailable"})
 		return
 	}
+	moderation, modErr := s.store.Moderation(ctx, id, u.ID)
+	if modErr != nil || moderation.Removed {
+		cancel()
+		s.hub.mu.Unlock()
+		_ = conn.WriteJSON(event{Type: "removed"})
+		return
+	}
 	if err = s.store.SetOnline(ctx, id, u.ID, true); err != nil {
 		cancel()
 		s.hub.mu.Unlock()
@@ -181,7 +204,7 @@ func (s *Server) websocket(w http.ResponseWriter, r *http.Request) {
 		s.hub.enqueue(old, event{Type: "replaced"})
 		close(old.send)
 	}
-	c.member = member{ID: u.ID, Name: u.Name, Host: u.ID == m.HostID, Mic: first.Mic, Camera: first.Camera, SessionID: randomID()}
+	c.member = member{ID: u.ID, Name: u.Name, Host: u.ID == m.HostID, Mic: first.Mic && !moderation.Muted, Camera: first.Camera, MutedByHost: moderation.Muted, SessionID: randomID()}
 	room[u.ID] = c
 	s.hub.enqueue(c, event{Type: "ready", Data: map[string]any{"meeting": m, "sessionId": c.member.SessionID}})
 	s.hub.membersLocked(id)
@@ -239,10 +262,22 @@ func (h *Hub) handle(c *client, in incoming) bool {
 	if room[c.user.ID] != c {
 		return false
 	}
+	if time.Since(c.windowStart) > 10*time.Second {
+		c.windowStart = time.Now()
+		c.frameCount = 0
+	}
+	c.frameCount++
+	if c.frameCount > 300 {
+		h.enqueue(c, event{Type: "error", Data: apiError{Code: "RATE_LIMITED", Message: "信令过于频繁"}})
+		return false
+	}
 	switch in.Type {
 	case "state":
-		c.member.Mic = in.Mic
+		c.member.Mic = in.Mic && !c.member.MutedByHost
 		c.member.Camera = in.Camera
+		c.member.Screen = in.Screen
+		c.member.Recording = in.Recording && c.member.Host
+		c.member.Captioning = in.Captioning && c.member.Mic && !c.member.MutedByHost
 		h.membersLocked(c.meetingID)
 	case "chat":
 		content := strings.TrimSpace(in.Content)

@@ -29,6 +29,9 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("读取配置: %w", err)
 	}
+	if cfg.LogFormat == "json" {
+		slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, nil)))
+	}
 	db, err := store.Open(cfg.DBPath)
 	if err != nil {
 		return fmt.Errorf("打开数据库: %w", err)

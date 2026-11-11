@@ -1,4 +1,4 @@
-# 执行基础档的自动化质量检查；任一检查失败时立即退出。
+# 执行三档常规质量检查；真实媒体/模型测试由 test-media.ps1、test-intelligence.ps1 单独执行。
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
 Push-Location -LiteralPath $projectRoot

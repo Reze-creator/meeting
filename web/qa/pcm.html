@@ -1,0 +1,24 @@
+<!doctype html><html lang="zh-CN"><meta charset="UTF-8"><title>Comeet AudioWorklet 验收</title>
+<h1>实际 AudioWorklet 与 PCM16 WAV</h1><p>仅使用浏览器合成振荡器，不访问麦克风。</p><button id="start">开始音频采样验收</button><p id="status" role="status">等待开始</p>
+<script type="module">
+import {encodeWav} from '/src/media/pcm.ts'
+let context,oscillator,node
+const status=document.querySelector('#status'),button=document.querySelector('#start')
+button.onclick=async()=>{
+ button.disabled=true
+ try{
+  context=new AudioContext({sampleRate:16000});await context.resume();await context.audioWorklet.addModule('/audio/pcm-capture.js')
+  oscillator=context.createOscillator();const volume=context.createGain();volume.gain.value=0.1
+  node=new AudioWorkletNode(context,'comeet-pcm');const silent=context.createGain();silent.gain.value=0
+  oscillator.connect(volume);volume.connect(node);node.connect(silent);silent.connect(context.destination)
+  node.port.onmessage=async event=>{
+   const {samples,sampleRate}=event.data,blob=encodeWav(samples,sampleRate),header=new DataView(await blob.arrayBuffer())
+   const duration=samples.length/sampleRate
+   status.textContent=duration===4&&header.getUint32(40,true)===samples.length*2?`通过：${sampleRate} Hz，${duration} 秒，WAV ${blob.size} 字节，首段完整可解码`:'失败：WAV 字段不一致'
+   oscillator.stop();node.disconnect();node.port.close();await context.close()
+  }
+  oscillator.start();status.textContent='正在采集合成音频，等待四秒片段…'
+ }catch(error){status.textContent='失败：'+error.message}
+}
+window.addEventListener('pagehide',()=>{try{oscillator?.stop()}catch{}node?.disconnect();void context?.close()})
+</script></html>

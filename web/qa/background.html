@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="zh-CN"><meta charset="UTF-8"><title>Comeet 本地人像分割验收</title>
+<style>body{font:16px system-ui;background:#eef3fa;color:#20344f;padding:24px}section{display:flex;gap:20px;flex-wrap:wrap}canvas,video{max-width:100%;width:480px;background:#21364c;border-radius:12px}button{padding:12px 20px;margin:12px 0}p{max-width:900px}</style>
+<h1>本地人像分割与 Canvas 合成</h1><p>使用 Google 官方公开样例图片作为合成摄像头，验证实际 WASM 模型推理。不会开启真实摄像头。</p>
+<button id="start">开始本地模型验收</button><p id="status" role="status">等待开始</p>
+<section><div><h2>原始样例</h2><canvas id="source" width="640" height="360"></canvas></div><div><h2>工作室背景</h2><video id="output" autoplay muted playsinline></video></div></section>
+<script type="module">
+import { createBackgroundProcessor } from '/src/media/background.ts'
+const button=document.querySelector('#start'),status=document.querySelector('#status')
+const canvas=document.querySelector('#source'),video=document.querySelector('#output'),painter=canvas.getContext('2d')
+let close,raw,timer
+button.onclick=async()=>{
+ button.disabled=true
+ try{
+  const image=new Image();image.src='/qa/portrait.jpg';await image.decode()
+  const paint=()=>painter.drawImage(image,0,0,640,360);paint();timer=setInterval(paint,66)
+  raw=canvas.captureStream(15).getVideoTracks()[0]
+  const controller=new AbortController()
+  const processor=await createBackgroundProcessor(raw,'studio',message=>{status.textContent=message},controller.signal)
+  close=processor.close;video.srcObject=new MediaStream([processor.track]);await video.play()
+  status.textContent=`通过：真实 MediaPipe 模型已加载，Canvas 输出 ${processor.track.getSettings().width}×${processor.track.getSettings().height}，track=${processor.track.readyState}`
+ }catch(error){status.textContent=`失败：${error.message}`;button.disabled=false}
+}
+window.addEventListener('pagehide',()=>{close?.();raw?.stop();clearInterval(timer)})
+</script></html>

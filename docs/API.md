@@ -1,5 +1,55 @@
 # HTTP 与 WebSocket 协议
 
+## 挑战档前三项新增接口
+
+以下接口均要求 Bearer JWT，会议数据仅本场参会者可读，生成纪要仅主持人可调用。普通 API 限流继续生效；模型调用使用独立的 30 秒 STT / 120 秒纪要超时，不在 Hub 锁中等待网络。
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| GET | `/api/intelligence` | 返回 `{captions,minutes,minutesModel}`，不返回密钥或服务内部地址 |
+| GET | `/api/meetings/{id}/captions?after=ID&before=ID` | 每页最多 100 条，首次取最近页，after 从旧到新补齐，before 向前翻页 |
+| POST | `/api/meetings/{id}/transcribe?clientId=唯一编号&sessionId=当前WS会话&startedAt=ISO时间&language=zh或en` | `Content-Type: audio/wav`，0.2–8 秒、最多 2 MiB、44 字节头的单声道 PCM16 WAV；本人必须在线、开麦、开启字幕且未被禁麦 |
+| GET | `/api/meetings/{id}/transcript` | 鉴权导出全部已保存转写为 UTF-8 TXT，分页遍历，不仅导出最近一页；最大 16 MiB |
+| GET | `/api/meetings/{id}/minutes` | `{minutes:null或{content,model,sourceHash,createdAt},stale}`；content 包含 overview、decisions、actions、risks |
+| POST | `/api/meetings/{id}/minutes` | 主持人生成/更新 DeepSeek 纪要；JSON 请求体可为空，资料来自服务端快照，每场最多一个在途生成任务 |
+
+转写成功返回 201 和 `Caption`：`{id,meetingId,userId,name,clientId,text,startedAt,duration,createdAt}`，无语音返回 200 `{empty:true}`，重复片段返回原有字幕。身份从 JWT 取得，模型调用完成后重新校验会话状态，丢弃静音、离会或连接替换后的结果。
+
+WS `state` 新增 `captioning:boolean`，`members` 快照同步实际状态。新事件 `caption` 携带已保存的 Caption。字幕推送与历史读取以 ID 去重；WS `ready` 的 `sessionId` 用于绑定音频片段当前会话，不能跨会话补传旧片段。
+
+新增错误码：`STT_NOT_CONFIGURED`、`STT_BUSY`、`INVALID_CLIP`、`INVALID_CLIP_TIME`、`CAPTION_NOT_ALLOWED`、`INVALID_AUDIO`、`AUDIO_TOO_LARGE`、`STT_FAILED`、`CAPTION_SESSION_ENDED`、`DEEPSEEK_NOT_CONFIGURED`、`MINUTES_BUSY`、`NO_MINUTES_SOURCE`、`MINUTES_SOURCE_LIMIT`、`DEEPSEEK_FAILED`、`EXPORT_TOO_LARGE`。失败不保存无效字幕、不覆盖旧纪要，上游错误正文不会透传。
+
+虚拟背景完全在浏览器中执行，不新增视频上传接口。详细配置与限制见 `docs/挑战档.md`。
+
+---
+
+## 进阶档新增接口
+
+以下接口均要求 Bearer JWT，普通用户 API 每分钟最多 180 次。录制上传允许较长读超时，其余请求保持短超时。
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| POST | `/api/meetings/{id}/media-token` | 需已在线且未被移出；返回 `{mode:"p2p"}` 或 `{mode:"livekit",url,token}` |
+| POST | `/api/meetings/{id}/moderation` | 主持人专用，`{target:用户ID,action:"mute"/"allow-mic"/"remove"}` |
+| GET | `/api/meetings/{id}/history` | 已加入用户可读取 `{meeting,participants,recordings}` |
+| POST | `/api/meetings/{id}/recordings?duration=秒数` | 主持人上传二进制 WebM，Content-Type `video/webm`，最大 96 MiB；已结束会议仍可保存最终片段 |
+| GET | `/api/recordings/{recordingId}` | 参会者鉴权读取私有 WebM，支持 Range |
+
+新增错误码：`REMOVED`（本场已移出）、`ROOM_NOT_READY`（信令未建立）、`MEDIA_CONTROL_FAILED`（业务限制已保存，媒体端同步失败，应重试）、`INVALID_ACTION`、`INVALID_TARGET`、`INVALID_DURATION`、`INVALID_RECORDING`、`RECORDING_TOO_LARGE`。
+
+`members` 快照新增 `screen`、`mutedByHost`、`recording`。客户端 `state` 可上报 `screen` 和 `recording`，服务器仅允许主持人上报录制；被限制的成员上报 `mic:true` 不会覆盖限制。
+
+新增服务端事件：
+
+- `moderation`：`{muted:boolean,removed:boolean}`；客户端同步限制，静音时立即关闭本地音轨。
+- `removed`：终止连接并返回工作台，不再自动重连。
+
+`allow-mic` 不会替用户打开麦克风。移出限制跨重连和进程重启保存。媒体 API 出错会返回 503，不伪装成完全成功。会议最长时长由 `MEETING_MAX_MINUTES` 配置，后台每 5 秒结束超时会议；媒体房间删除失败会在本进程重试。
+
+P2P 的 `signal` 可携带 `screenId`；服务端将其作为不透明信令仅转发给同房间目标成员。LiveKit 模式媒体信令由 SDK 直接连接 SFU，业务 WebSocket 继续负责成员、聊天和控制事件。
+
+---
+
 ## HTTP 约定
 
 请求和响应使用 JSON。除注册、登录和健康检查外，需要 `Authorization: Bearer <JWT>`。

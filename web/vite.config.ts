@@ -5,6 +5,25 @@ import { defineConfig } from 'vite'
 export default defineConfig({
   plugins: [react()],
   envDir: '..',
+  build: {
+    rolldownOptions: {
+      output: {
+        codeSplitting: {
+          groups: [
+            {
+              name: 'media-protocol',
+              test: /node_modules\/(@livekit\/protocol|@bufbuild)/,
+              priority: 20,
+            },
+            {
+              name: 'livekit',
+              test: /node_modules\/(livekit-client|@livekit|@bufbuild|@protobufjs|protobufjs|sdp|webrtc-adapter)/,
+            },
+          ],
+        },
+      },
+    },
+  },
   server: {
     host: '127.0.0.1',
     proxy: {

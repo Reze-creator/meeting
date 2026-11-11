@@ -28,6 +28,25 @@ function mockDevices(getUserMedia: ReturnType<typeof vi.fn>) {
 }
 
 describe('本地媒体资源生命周期', () => {
+  it('设备热插拔恢复到默认输入时保持原有静音状态', async () => {
+    const first = track('audio')
+    const replacement = track('audio')
+    mockDevices(
+      vi
+        .fn()
+        .mockResolvedValueOnce(new FakeStream([first]))
+        .mockResolvedValueOnce(new FakeStream([replacement])),
+    )
+    const { result } = renderHook(useMedia)
+    await act(async () => result.current.toggle('audio'))
+    act(() => result.current.mute())
+    await act(async () => {
+      const ended = first.onended as unknown as () => void
+      ended()
+    })
+    await waitFor(() => expect(replacement.enabled).toBe(false))
+    expect(result.current.mic).toBe(false)
+  })
   it('切换麦克风释放旧设备，离会释放全部轨道', async () => {
     const first = track('audio')
     const second = track('audio')

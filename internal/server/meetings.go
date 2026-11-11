@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"regexp"
 	"strconv"
@@ -74,6 +75,15 @@ func (s *Server) joinMeeting(w http.ResponseWriter, r *http.Request) {
 		fail(w, 409, "MEETING_ENDED", "会议已结束")
 		return
 	}
+	mod, err := s.store.Moderation(r.Context(), m.ID, currentUser(r).ID)
+	if err != nil {
+		s.internal(w, err)
+		return
+	}
+	if mod.Removed {
+		fail(w, 403, "REMOVED", "你已被主持人移出本场会议")
+		return
+	}
 	if err := s.store.Join(r.Context(), m.ID, currentUser(r).ID); err != nil {
 		s.internal(w, err)
 		return
@@ -110,6 +120,10 @@ func (s *Server) endMeeting(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.hub.endLocked(m.ID)
+	if err := s.media.End(r.Context(), m.ID); err != nil {
+		s.cleanup[m.ID] = true
+		slog.Warn("媒体房间清理将重试", "meeting", m.ID, "error", err)
+	}
 	respond(w, 200, map[string]bool{"ended": true})
 }
 func (s *Server) messages(w http.ResponseWriter, r *http.Request) {

@@ -84,7 +84,16 @@ PRAGMA user_version=1;`)
 		db.Close()
 		return nil, err
 	}
-	return &Store{db: db}, nil
+	s := &Store{db: db}
+	if err := s.migrateAdvanced(); err != nil {
+		db.Close()
+		return nil, err
+	}
+	if err := s.migrateIntelligence(); err != nil {
+		db.Close()
+		return nil, err
+	}
+	return s, nil
 }
 func (s *Store) Close() error { return s.db.Close() }
 func now() string             { return time.Now().UTC().Format(time.RFC3339Nano) }

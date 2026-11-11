@@ -4,6 +4,7 @@ import type { Member } from '../types'
 export interface Signal {
   description?: RTCSessionDescriptionInit
   candidate?: RTCIceCandidateInit
+  screenId?: string
 }
 interface Peer {
   pc: RTCPeerConnection
@@ -15,6 +16,7 @@ interface Peer {
   stream: MediaStream
   queue: Promise<void>
   senders: Map<string, RTCRtpSender>
+  screenId?: string
 }
 type SendSignal = (target: number, signal: Signal) => void
 
@@ -23,20 +25,29 @@ export function usePeers(
   localStream: MediaStream | undefined,
   selfId: number,
   sendSignal: SendSignal,
+  screenStream?: MediaStream,
 ) {
   const peers = useRef(new Map<number, Peer>())
   const local = useRef(localStream)
   const send = useRef(sendSignal)
+  const screen = useRef(screenStream)
+  const [screens, setScreens] = useState<Record<number, MediaStream>>({})
   const [streams, setStreams] = useState<Record<number, MediaStream>>({})
   const [failures, setFailures] = useState<number[]>([])
   useEffect(() => {
     local.current = localStream
     send.current = sendSignal
-  }, [localStream, sendSignal])
+    screen.current = screenStream
+  }, [localStream, sendSignal, screenStream])
 
   const destroy = useCallback((id: number) => {
     peers.current.get(id)?.pc.close()
     peers.current.delete(id)
+    setScreens((old) => {
+      const next = { ...old }
+      delete next[id]
+      return next
+    })
     setStreams((old) => {
       const next = { ...old }
       delete next[id]
@@ -78,7 +89,11 @@ export function usePeers(
       pc.onicecandidate = ({ candidate }) => {
         if (candidate) send.current(member.id, { candidate: candidate.toJSON() })
       }
-      pc.ontrack = ({ track }) => {
+      pc.ontrack = ({ track, streams: remoteStreams }) => {
+        if (current.screenId && remoteStreams[0]?.id === current.screenId) {
+          setScreens((old) => ({ ...old, [member.id]: new MediaStream([track]) }))
+          return
+        }
         current.stream.addTrack(track)
         setStreams((old) => ({ ...old, [member.id]: new MediaStream(current.stream.getTracks()) }))
         track.onended = () => {
@@ -102,7 +117,10 @@ export function usePeers(
         try {
           current.makingOffer = true
           await pc.setLocalDescription()
-          send.current(member.id, { description: pc.localDescription!.toJSON() })
+          send.current(member.id, {
+            description: pc.localDescription!.toJSON(),
+            screenId: screen.current?.id,
+          })
         } catch {
           if (pc.signalingState !== 'closed')
             setFailures((old) => [...new Set([...old, member.id])])
@@ -112,6 +130,8 @@ export function usePeers(
       }
       for (const track of local.current?.getTracks() ?? [])
         current.senders.set(track.kind, pc.addTrack(track, local.current!))
+      for (const track of screen.current?.getTracks() ?? [])
+        current.senders.set('screen', pc.addTrack(track, screen.current!))
       return peer
     },
     [destroy, selfId],
@@ -135,6 +155,7 @@ export function usePeers(
     peer.queue = peer.queue.then(async () => {
       try {
         if (signal.description) {
+          peer.screenId = signal.screenId
           const readyForOffer =
             !peer.makingOffer && (pc.signalingState === 'stable' || peer.settingAnswer)
           const collision = signal.description.type === 'offer' && !readyForOffer
@@ -145,7 +166,10 @@ export function usePeers(
           peer.settingAnswer = false
           if (signal.description.type === 'offer') {
             await pc.setLocalDescription()
-            send.current(from, { description: pc.localDescription!.toJSON() })
+            send.current(from, {
+              description: pc.localDescription!.toJSON(),
+              screenId: screen.current?.id,
+            })
           }
         } else if (signal.candidate) {
           try {
@@ -170,10 +194,23 @@ export function usePeers(
       }
     }
   }, [localStream])
+  useEffect(() => {
+    for (const peer of peers.current.values()) {
+      const track = screenStream?.getVideoTracks()[0]
+      const sender = peer.senders.get('screen')
+      if (sender && sender.track !== track) {
+        peer.pc.removeTrack(sender)
+        peer.senders.delete('screen')
+      }
+      if (track && !peer.senders.has('screen'))
+        peer.senders.set('screen', peer.pc.addTrack(track, screenStream!))
+    }
+  }, [screenStream])
   const reset = useCallback(() => {
     for (const peer of peers.current.values()) peer.pc.close()
     peers.current.clear()
     setStreams({})
+    setScreens({})
     setFailures([])
   }, [])
   useEffect(
@@ -183,5 +220,5 @@ export function usePeers(
     },
     [],
   )
-  return { streams, failures, syncMembers, receive, reset }
+  return { streams, screens, failures, syncMembers, receive, reset }
 }

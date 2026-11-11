@@ -2,19 +2,31 @@ package server
 
 import (
 	"comeet/internal/config"
+	"comeet/internal/intelligence"
+	"comeet/internal/media"
 	"comeet/internal/store"
+	"context"
 	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
+	"time"
 )
 
 type Server struct {
-	store   *store.Store
-	cfg     config.Config
-	hub     *Hub
-	limiter *rateLimiter
+	store                     *store.Store
+	cfg                       config.Config
+	hub                       *Hub
+	limiter                   *rateLimiter
+	media                     *media.Client
+	cancel                    context.CancelFunc
+	worker                    sync.WaitGroup
+	cleanup                   map[string]bool
+	intelligence              *intelligence.Client
+	transcribing, summarizing sync.Map
+	sttSlots                  chan struct{}
 }
 type userKey struct{}
 type envelope struct {
@@ -27,11 +39,21 @@ type apiError struct {
 }
 
 func New(db *store.Store, cfg config.Config) *Server {
-	s := &Server{store: db, cfg: cfg, limiter: &rateLimiter{hits: map[string]hit{}}}
+	if cfg.RecordingDir == "" {
+		cfg.RecordingDir = "data/recordings"
+	}
+	s := &Server{store: db, cfg: cfg, limiter: &rateLimiter{hits: map[string]hit{}}, media: media.New(cfg), cleanup: map[string]bool{}}
 	s.hub = newHub(db)
+	s.sttSlots = make(chan struct{}, 4)
+	s.intelligence = &intelligence.Client{STTURL: cfg.STTURL, STTKey: cfg.STTKey, STTModel: cfg.STTModel, DeepSeekURL: cfg.DeepSeekURL, DeepSeekKey: cfg.DeepSeekKey, DeepSeekModel: cfg.DeepSeekModel, HTTP: &http.Client{Timeout: 125 * time.Second, CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse }}}
+	s.hub.media = s.media
+	ctx, cancel := context.WithCancel(context.Background())
+	s.cancel = cancel
+	s.worker.Add(1)
+	go s.schedule(ctx)
 	return s
 }
-func (s *Server) Close() { s.hub.close() }
+func (s *Server) Close() { s.cancel(); s.worker.Wait(); s.hub.close() }
 
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
@@ -47,6 +69,17 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/meetings/{id}", s.auth(http.HandlerFunc(s.meetingDetail)))
 	mux.Handle("GET /api/meetings/{id}/messages", s.auth(http.HandlerFunc(s.messages)))
 	mux.HandleFunc("GET /ws", s.websocket)
+	mux.Handle("GET /api/intelligence", s.auth(http.HandlerFunc(s.intelligenceStatus)))
+	mux.Handle("GET /api/meetings/{id}/captions", s.auth(http.HandlerFunc(s.captions)))
+	mux.Handle("POST /api/meetings/{id}/transcribe", s.auth(http.HandlerFunc(s.transcribe)))
+	mux.Handle("GET /api/meetings/{id}/transcript", s.auth(http.HandlerFunc(s.exportCaptions)))
+	mux.Handle("GET /api/meetings/{id}/minutes", s.auth(http.HandlerFunc(s.minutes)))
+	mux.Handle("POST /api/meetings/{id}/minutes", s.auth(http.HandlerFunc(s.generateMinutes)))
+	mux.Handle("POST /api/meetings/{id}/moderation", s.auth(http.HandlerFunc(s.moderate)))
+	mux.Handle("POST /api/meetings/{id}/media-token", s.auth(http.HandlerFunc(s.mediaToken)))
+	mux.Handle("GET /api/meetings/{id}/history", s.auth(http.HandlerFunc(s.history)))
+	mux.Handle("POST /api/meetings/{id}/recordings", s.auth(http.HandlerFunc(s.uploadRecording)))
+	mux.Handle("GET /api/recordings/{recording}", s.auth(http.HandlerFunc(s.downloadRecording)))
 	mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) { fail(w, 404, "NOT_FOUND", "接口不存在") })
 	mux.HandleFunc("/", serveWeb)
 	return s.middleware(mux)
@@ -79,7 +112,11 @@ func (s *Server) middleware(next http.Handler) http.Handler {
 				fail(w, 500, "INTERNAL_ERROR", "服务暂时不可用")
 			}
 		}()
+		started := time.Now()
 		next.ServeHTTP(w, r)
+		if strings.HasPrefix(r.URL.Path, "/api/") {
+			slog.Info("http_request", "method", r.Method, "path", r.URL.Path, "duration_ms", time.Since(started).Milliseconds())
+		}
 	})
 }
 

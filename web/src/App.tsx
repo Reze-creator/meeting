@@ -5,6 +5,8 @@ import { AuthPage } from './pages/AuthPage'
 import { Dashboard } from './pages/Dashboard'
 import { MeetingSession } from './pages/MeetingSession'
 import './App.css'
+import './advanced.css'
+import './challenge.css'
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null)

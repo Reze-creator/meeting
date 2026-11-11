@@ -15,6 +15,9 @@ type rateLimiter struct {
 }
 
 func (l *rateLimiter) allow(key string) bool {
+	return l.allowLimit("auth:"+key, 30)
+}
+func (l *rateLimiter) allowLimit(key string, limit int) bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	t := time.Now()
@@ -34,5 +37,5 @@ func (l *rateLimiter) allow(key string) bool {
 	}
 	v.count++
 	l.hits[key] = v
-	return v.count <= 30
+	return v.count <= limit
 }

@@ -49,6 +49,10 @@ func (s *Server) auth(next http.Handler) http.Handler {
 			fail(w, 401, "UNAUTHORIZED", "登录已过期，请重新登录")
 			return
 		}
+		if !s.limiter.allowLimit("user:"+strconv.FormatInt(u.ID, 10), 180) {
+			fail(w, 429, "RATE_LIMITED", "操作过于频繁，请稍后重试")
+			return
+		}
 		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), userKey{}, u)))
 	})
 }

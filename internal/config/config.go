@@ -8,12 +8,20 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"strconv"
 	"strings"
+	"time"
 )
 
 type Config struct {
-	Addr, DBPath, JWTSecret string
-	AllowedOrigins          map[string]bool
+	Addr, DBPath, JWTSecret                           string
+	AllowedOrigins                                    map[string]bool
+	RecordingDir                                      string
+	LogFormat                                         string
+	MaxMeetingDuration                                time.Duration
+	MediaURL, MediaInternalURL, MediaKey, MediaSecret string
+	STTURL, STTKey, STTModel                          string
+	DeepSeekURL, DeepSeekKey, DeepSeekModel           string
 }
 
 func Load() (Config, error) {
@@ -54,6 +62,25 @@ func Load() (Config, error) {
 	}
 	if len(c.JWTSecret) < 32 {
 		return c, fmt.Errorf("JWT_SECRET 至少需要 32 个字节")
+	}
+	c.RecordingDir = value("RECORDING_DIR", "data/recordings")
+	c.STTURL, c.STTKey, c.STTModel = os.Getenv("STT_BASE_URL"), os.Getenv("STT_API_KEY"), value("STT_MODEL", "small")
+	c.DeepSeekURL, c.DeepSeekKey = value("DEEPSEEK_BASE_URL", "https://api.deepseek.com"), os.Getenv("DEEPSEEK_API_KEY")
+	c.DeepSeekModel = value("DEEPSEEK_MODEL", "deepseek-flash")
+	c.LogFormat = value("LOG_FORMAT", "text")
+	if c.LogFormat != "text" && c.LogFormat != "json" {
+		return c, fmt.Errorf("LOG_FORMAT 只能为 text 或 json")
+	}
+	minutes, err := strconv.Atoi(value("MEETING_MAX_MINUTES", "240"))
+	if err != nil || minutes < 1 || minutes > 10080 {
+		return c, fmt.Errorf("MEETING_MAX_MINUTES 必须为 1–10080 的整数")
+	}
+	c.MaxMeetingDuration = time.Duration(minutes) * time.Minute
+	c.MediaURL = os.Getenv("LIVEKIT_URL")
+	c.MediaInternalURL = value("LIVEKIT_INTERNAL_URL", c.MediaURL)
+	c.MediaKey, c.MediaSecret = os.Getenv("LIVEKIT_API_KEY"), os.Getenv("LIVEKIT_API_SECRET")
+	if c.MediaURL != "" && (c.MediaKey == "" || c.MediaSecret == "") {
+		return c, fmt.Errorf("配置 LiveKit 时需同时提供 URL、API_KEY 与 API_SECRET")
 	}
 	for _, origin := range strings.Split(value("ALLOWED_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173,http://localhost:8080,http://127.0.0.1:8080"), ",") {
 		c.AllowedOrigins[strings.TrimSpace(origin)] = true

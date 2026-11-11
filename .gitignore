@@ -5,4 +5,8 @@ web/dist/
 bin/
 *.log
 coverage.out
+.venv-stt/
+__pycache__/
+web/public/vendor/
+web/qa/portrait.jpg
 

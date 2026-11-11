@@ -1,0 +1,226 @@
+.device-diagnostics {
+  display: grid;
+  gap: 10px;
+  margin: 15px 0;
+  color: #8a98af;
+}
+.device-diagnostics label {
+  margin: 0;
+}
+.device-diagnostics meter {
+  width: 100%;
+  height: 18px;
+}
+.device-diagnostics small {
+  font-size: 11px;
+}
+.device-diagnostics .button {
+  justify-self: start;
+}
+.layout-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  padding: 10px 24px;
+  background: #1b2537;
+  color: #aabbda;
+}
+.layout-toolbar label {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 11px;
+}
+.layout-toolbar select {
+  background: #26364e;
+  color: #d2ddf4;
+  border-color: #3b4a64;
+  padding: 5px 8px;
+  font-size: 11px;
+}
+.layout-toolbar > span {
+  font-size: 11px;
+  color: #a9d8bd;
+}
+.recording-banner {
+  background: #6b2836;
+  color: #ffd7dd;
+  padding: 8px 24px;
+  font-size: 12px;
+}
+.video-grid.layout-speaker {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.focused-tile {
+  grid-column: 1/-1;
+  grid-row: 1;
+  min-height: 300px;
+}
+.share-tile {
+  grid-column: 1/-1;
+  min-height: 300px;
+}
+.share-tile video {
+  position: static;
+  opacity: 1;
+  object-fit: contain;
+}
+.layout-share .share-tile {
+  grid-row: 1;
+  min-height: 380px;
+}
+.layout-share > .video-tile:not(.share-tile) {
+  max-height: 180px;
+}
+.share-empty {
+  grid-column: 1/-1;
+  text-align: center;
+  color: #899cbe;
+  padding: 25px;
+}
+.member-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 7px;
+}
+.member-actions button {
+  font-size: 10px;
+  color: #d3ddf6;
+  background: #354360;
+  border-radius: 4px;
+  padding: 4px 6px;
+}
+.advanced-member {
+  align-items: start;
+}
+.unread-badge {
+  background: #d04e60;
+  color: white;
+  border-radius: 12px;
+  min-width: 18px;
+  padding: 0 5px;
+  font-size: 10px;
+}
+.history-dialog {
+  width: min(900px, 100%);
+  max-height: 88dvh;
+  overflow: auto;
+}
+.history-dialog h3 {
+  margin: 25px 0 12px;
+}
+.history-participants {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: 12px;
+  color: #7b89a3;
+}
+.history-participants span {
+  background: #f1f4fa;
+  padding: 7px 12px;
+  border-radius: 7px;
+}
+.recording-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px;
+  border-bottom: 1px solid #edf0f5;
+  font-size: 12px;
+  gap: 15px;
+}
+.recording-row .button {
+  font-size: 11px;
+}
+.history-video {
+  max-height: 450px;
+  background: #172133;
+  margin: 16px 0;
+}
+.history-chat {
+  max-height: 300px;
+  overflow: auto;
+  font-size: 12px;
+}
+.history-chat p {
+  background: #f3f6fb;
+  border-radius: 7px;
+  padding: 12px;
+}
+.history-chat time {
+  color: #9ba6b9;
+  font-size: 10px;
+  margin-left: 15px;
+}
+.history-chat span {
+  display: block;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  margin-top: 6px;
+}
+.reconnect-banner a,
+.reconnect-banner button {
+  color: #e0ecff;
+  text-decoration: underline;
+  background: none;
+}
+.room-alert button {
+  white-space: nowrap;
+}
+.room-page .modal .device-buttons {
+  color: #20273c;
+}
+.room-toolbar {
+  flex-wrap: wrap;
+}
+.room-toolbar .toolbar-devices {
+  flex-wrap: wrap;
+  gap: 18px;
+}
+@media (max-width: 800px) {
+  .layout-toolbar {
+    gap: 12px;
+    padding: 8px 12px;
+    flex-wrap: wrap;
+  }
+  .layout-toolbar label {
+    font-size: 10px;
+  }
+  .room-toolbar .toolbar-devices {
+    gap: 12px;
+  }
+  .room-toolbar .toolbar-button {
+    min-width: 40px;
+  }
+  .room-main {
+    overflow: auto;
+    min-height: 200px;
+  }
+  .video-grid {
+    min-height: 300px;
+    overflow: visible;
+  }
+  .video-grid.layout-speaker {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .room-side {
+    height: 260px;
+    flex-shrink: 0;
+  }
+  .room-page {
+    min-height: 760px;
+  }
+  .focused-tile,
+  .layout-share .share-tile {
+    min-height: 250px;
+  }
+  .history-dialog {
+    padding: 24px;
+  }
+  .recording-row {
+    flex-wrap: wrap;
+  }
+}

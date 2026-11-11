@@ -6,15 +6,22 @@ import { useMedia } from '../hooks/useMedia'
 import type { MediaController } from '../hooks/useMedia'
 import type { Meeting, User } from '../types'
 import { RoomPage } from './RoomPage'
+import { DeviceDiagnostics } from '../components/DeviceDiagnostics'
 
-export function DeviceControls({ media }: { media: MediaController }) {
+export function DeviceControls({
+  media,
+  mutedByHost = false,
+}: {
+  media: MediaController
+  mutedByHost?: boolean
+}) {
   return (
     <>
       <div className="device-buttons">
         <button
           className={`device-button ${media.mic ? 'enabled' : ''}`}
           onClick={() => void media.toggle('audio')}
-          disabled={media.busy}
+          disabled={media.busy || mutedByHost}
         >
           <Icon name="mic" off={!media.mic} />
           {media.mic ? '关闭麦克风' : '开启麦克风'}
@@ -33,7 +40,7 @@ export function DeviceControls({ media }: { media: MediaController }) {
         <select
           value={media.deviceId}
           onChange={(event) => void media.selectMicrophone(event.target.value)}
-          disabled={media.busy}
+          disabled={media.busy || mutedByHost}
         >
           <option value="">系统默认设备</option>
           {media.devices
@@ -45,6 +52,38 @@ export function DeviceControls({ media }: { media: MediaController }) {
             ))}
         </select>
       </label>
+      <label className="device-select">
+        摄像头
+        <select
+          value={media.cameraId}
+          onChange={(event) => void media.selectCamera(event.target.value)}
+          disabled={media.busy}
+        >
+          <option value="">系统默认设备</option>
+          {media.devices
+            .filter((device) => device.kind === 'videoinput')
+            .map((device, index) => (
+              <option key={device.deviceId || index} value={device.deviceId}>
+                {device.label || `摄像头 ${index + 1}`}
+              </option>
+            ))}
+        </select>
+      </label>
+      <DeviceDiagnostics media={media} />
+      <label className="device-select">
+        虚拟背景（在本机处理）
+        <select
+          value={media.background.mode}
+          onChange={(event) =>
+            media.background.setMode(event.target.value as 'off' | 'blur' | 'studio')
+          }
+        >
+          <option value="off">关闭</option>
+          <option value="blur">背景虚化</option>
+          <option value="studio">简约工作室</option>
+        </select>
+      </label>
+      {media.background.loading && <p role="status">正在加载人像分割，画面就绪后自动发布…</p>}
     </>
   )
 }
