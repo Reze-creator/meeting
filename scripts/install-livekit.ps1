@@ -1,4 +1,4 @@
-# 固定版本并校验官方 SHA256 清单；只安装到项目 bin，不修改 PATH 或系统配置。
+﻿# 固定版本并校验官方 SHA256 清单；只安装到项目 bin，不修改 PATH 或系统配置。
 param([string]$Version = '1.13.11')
 $ErrorActionPreference = 'Stop'
 if ($Version -notmatch '^\d+\.\d+\.\d+$') { throw '版本号格式应为 x.y.z' }

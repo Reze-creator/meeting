@@ -1,9 +1,8 @@
-# 仅供本机开发，devkey/secret 是公开的测试凭据，不可直接用于公网。
 port: 7880
 bind_addresses:
   - 127.0.0.1
 keys:
-  devkey: secret
+  devkey: comeet-local-development-secret-2026
 rtc:
   node_ip: 127.0.0.1
   tcp_port: 7881

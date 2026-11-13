@@ -1,4 +1,4 @@
-# 使用 Windows TTS 生成中文测试语音，仅向指定本机 STT 发送合成测试资料。
+﻿# 使用 Windows TTS 生成中文测试语音，仅向指定本机 STT 发送合成测试资料。
 param([string]$BaseURL = 'http://127.0.0.1:8091/v1')
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot

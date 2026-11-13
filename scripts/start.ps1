@@ -1,4 +1,4 @@
-# 从项目根目录启动生产构建；保持前台运行以便 Ctrl+C 正常关闭房间和数据库。
+﻿# 从项目根目录启动生产构建；保持前台运行以便 Ctrl+C 正常关闭房间和数据库。
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
 Push-Location -LiteralPath $projectRoot

@@ -51,7 +51,9 @@ func Load() (Config, error) {
 	} else if !os.IsNotExist(err) {
 		return Config{}, err
 	}
-	c := Config{Addr: value("ADDR", "127.0.0.1:8080"), DBPath: value("DB_PATH", "data/comeet.db"), JWTSecret: os.Getenv("JWT_SECRET"), AllowedOrigins: map[string]bool{}}
+
+	c := Config{Addr: value("ADDR", "127.0.0.1:8080"), DBPath: value("DB_PATH", "data/comeet.db"),
+		JWTSecret: os.Getenv("JWT_SECRET"), AllowedOrigins: map[string]bool{}}
 	if c.JWTSecret == "" {
 		b := make([]byte, 32)
 		if _, err := rand.Read(b); err != nil {
@@ -64,7 +66,7 @@ func Load() (Config, error) {
 		return c, fmt.Errorf("JWT_SECRET 至少需要 32 个字节")
 	}
 	c.RecordingDir = value("RECORDING_DIR", "data/recordings")
-	c.STTURL, c.STTKey, c.STTModel = os.Getenv("STT_BASE_URL"), os.Getenv("STT_API_KEY"), value("STT_MODEL", "small")
+	c.STTURL, c.STTKey, c.STTModel = os.Getenv("STT_BASE_URL"), os.Getenv("STT_API_KEY"), value("STT_MODEL", "tiny")
 	c.DeepSeekURL, c.DeepSeekKey = value("DEEPSEEK_BASE_URL", "https://api.deepseek.com"), os.Getenv("DEEPSEEK_API_KEY")
 	c.DeepSeekModel = value("DEEPSEEK_MODEL", "deepseek-flash")
 	c.LogFormat = value("LOG_FORMAT", "text")

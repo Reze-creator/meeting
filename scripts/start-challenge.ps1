@@ -1,4 +1,4 @@
-# 完整本机演示：本地 STT + LiveKit + Go/React。所有子进程退出时由本脚本清理。
+﻿# 完整本机演示：本地 STT + LiveKit + Go/React。所有子进程退出时由本脚本清理。
 param([string]$Model = 'small')
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot

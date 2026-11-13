@@ -1,4 +1,4 @@
-# 固定合成会议资料调用真实本地 STT 与 DeepSeek，不读取用户会议，也不采集麦克风。
+﻿# 固定合成会议资料调用真实本地 STT 与 DeepSeek，不读取用户会议，也不采集麦克风。
 # 本脚本的 DeepSeek 请求会产生少量模型调用费用。
 param([string]$STTBaseURL = 'http://127.0.0.1:8091/v1')
 $ErrorActionPreference = 'Stop'

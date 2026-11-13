@@ -1,4 +1,4 @@
-# 本地 CPU 语音识别，不需要云端 STT 密钥。首次加载模型需要网络和磁盘空间。
+﻿# 本地 CPU 语音识别，不需要云端 STT 密钥。首次加载模型需要网络和磁盘空间。
 param([string]$Model = 'small', [int]$Port = 8091)
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot

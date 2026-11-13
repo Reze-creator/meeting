@@ -1,4 +1,4 @@
-# 本机开发专用：仅绑定 loopback。正式部署应使用独立随机密钥、HTTPS 与正确的公网 ICE 地址。
+﻿# 本机开发专用：仅绑定 loopback。正式部署应使用独立随机密钥、HTTPS 与正确的公网 ICE 地址。
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $executable = Join-Path $projectRoot 'bin\livekit\livekit-server.exe'

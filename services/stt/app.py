@@ -21,7 +21,7 @@ async def lifespan(_app: FastAPI):
     # CPU int8 无需 CUDA。模型在启动时加载，健康检查成功意味着已经可以识别。
     model = await run_in_threadpool(
         lambda: WhisperModel(
-            os.getenv("WHISPER_MODEL", "small"),
+            os.getenv("WHISPER_MODEL", "tiny"),
             device="cpu",
             compute_type="int8",
             cpu_threads=max(1, int(os.getenv("WHISPER_THREADS", "4"))),

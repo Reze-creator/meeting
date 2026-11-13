@@ -56,25 +56,42 @@ func Open(path string) (*Store, error) {
 	// 单连接使写入顺序可预测，并保证连接级 PRAGMA 对所有查询有效。
 	db.SetMaxOpenConns(1)
 	_, err = db.Exec(`PRAGMA foreign_keys=ON; PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;
-CREATE TABLE IF NOT EXISTS users (
- id INTEGER PRIMARY KEY, username TEXT NOT NULL UNIQUE, name TEXT NOT NULL, password_hash TEXT NOT NULL
-);
-CREATE TABLE IF NOT EXISTS meetings (
- id TEXT PRIMARY KEY, title TEXT NOT NULL, host_id INTEGER NOT NULL REFERENCES users(id),
- created_at TEXT NOT NULL, ended_at TEXT
-);
-CREATE TABLE IF NOT EXISTS participants (
- meeting_id TEXT NOT NULL REFERENCES meetings(id), user_id INTEGER NOT NULL REFERENCES users(id),
- joined_at TEXT NOT NULL, left_at TEXT, PRIMARY KEY(meeting_id,user_id)
-);
-CREATE TABLE IF NOT EXISTS messages (
- id INTEGER PRIMARY KEY AUTOINCREMENT, meeting_id TEXT NOT NULL REFERENCES meetings(id),
- user_id INTEGER NOT NULL REFERENCES users(id), name TEXT NOT NULL, content TEXT NOT NULL,
- client_id TEXT NOT NULL, created_at TEXT NOT NULL, UNIQUE(meeting_id,user_id,client_id)
-);
-CREATE INDEX IF NOT EXISTS idx_messages_meeting ON messages(meeting_id,id);
-CREATE INDEX IF NOT EXISTS idx_participants_user ON participants(user_id,meeting_id);
-PRAGMA user_version=1;`)
+
+		CREATE TABLE IF NOT EXISTS users (
+		id INTEGER PRIMARY KEY,
+		username TEXT NOT NULL UNIQUE, 
+		name TEXT NOT NULL, 
+		password_hash TEXT NOT NULL
+		);
+
+		CREATE TABLE IF NOT EXISTS meetings (
+		id TEXT PRIMARY KEY, 
+		title TEXT NOT NULL, 
+		host_id INTEGER NOT NULL REFERENCES users(id),
+		created_at TEXT NOT NULL, 
+		ended_at TEXT
+		);
+
+		CREATE TABLE IF NOT EXISTS participants (
+		meeting_id TEXT NOT NULL REFERENCES meetings(id), 
+		user_id INTEGER NOT NULL REFERENCES users(id),
+		joined_at TEXT NOT NULL, 
+		left_at TEXT, 
+		PRIMARY KEY(meeting_id,user_id)
+		);
+
+		CREATE TABLE IF NOT EXISTS messages (
+		id INTEGER PRIMARY KEY AUTOINCREMENT, 
+		meeting_id TEXT NOT NULL REFERENCES meetings(id),
+		user_id INTEGER NOT NULL REFERENCES users(id), 
+		name TEXT NOT NULL, content TEXT NOT NULL,
+		client_id TEXT NOT NULL, created_at TEXT NOT NULL, 
+		UNIQUE(meeting_id,user_id,client_id)
+		);
+		
+		CREATE INDEX IF NOT EXISTS idx_messages_meeting ON messages(meeting_id,id);
+		CREATE INDEX IF NOT EXISTS idx_participants_user ON participants(user_id,meeting_id);
+		PRAGMA user_version=1;`)
 	if err != nil {
 		db.Close()
 		return nil, err

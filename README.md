@@ -4,7 +4,7 @@ React + TypeScript + Vite、Go、SQLite、WebSocket 与 WebRTC 实现的在线�
 
 ## 快速启动
 
-完整字幕/纪要/虚拟背景演示：在后端 `.env` 配置 `DEEPSEEK_API_KEY` 后运行 `.\scripts\start-challenge.ps1`，需要 Python 3.11–3.13。首次自动下载本地 Whisper 模型；CPU 较慢时可加 `-Model tiny`。详细说明、配置与验证边界见 **`docs/挑战档.md`**。
+完整字幕/纪要/虚拟背景演示：在后端 `.env` 配置 `DEEPSEEK_API_KEY` 后运行 `.\scripts\start-challenge.ps1`，需要 Python 3.11–3.13。默认使用轻量 Whisper tiny，首次自动下载；需要更高识别质量可加 `-Model small`。启动脚本同时兼容 Windows PowerShell 5.1 和 PowerShell 7。详细说明、配置与验证边界见 **`docs/挑战档.md`**。
 
 在项目根目录运行完整进阶演示：
 

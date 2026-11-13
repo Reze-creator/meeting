@@ -1,4 +1,4 @@
-# 一条命令启动本机进阶演示：隐藏媒体服务窗口，应用保持前台，退出时清理本脚本的子进程。
+﻿# 一条命令启动本机进阶演示：隐藏媒体服务窗口，应用保持前台，退出时清理本脚本的子进程。
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $executable = Join-Path $projectRoot 'bin\livekit\livekit-server.exe'

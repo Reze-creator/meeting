@@ -1,4 +1,4 @@
-# 先启动本机 LiveKit，再执行不使用真实设备的 WebRTC 集成测试。
+﻿# 先启动本机 LiveKit，再执行不使用真实设备的 WebRTC 集成测试。
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $previous = $env:LIVEKIT_TEST_URL
