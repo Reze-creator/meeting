@@ -28,7 +28,7 @@ try {
     $env:LIVEKIT_URL = 'ws://127.0.0.1:7880'
     $env:LIVEKIT_INTERNAL_URL = 'http://127.0.0.1:7880'
     $env:LIVEKIT_API_KEY = 'devkey'
-    $env:LIVEKIT_API_SECRET = 'secret'
+    $env:LIVEKIT_API_SECRET = 'comeet-local-development-secret-2026'
     & (Join-Path $PSScriptRoot 'start.ps1')
 } finally {
     if ($mediaProcess) {

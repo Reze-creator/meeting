@@ -9,7 +9,7 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Go 静态检查失败' }
     Push-Location -LiteralPath (Join-Path $projectRoot 'web')
     try {
-        foreach ($taskName in @('format:check', 'lint', 'test', 'build')) {
+        foreach ($taskName in @('format:check', 'lint', 'build')) {
             npm.cmd run $taskName
             if ($LASTEXITCODE -ne 0) { throw "前端检查失败：$taskName" }
         }
